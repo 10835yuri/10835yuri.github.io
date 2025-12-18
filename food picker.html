@@ -6,7 +6,7 @@
     <link rel="icon"href="icon.png">
   </head>
   <body>
-  <!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
@@ -79,27 +79,34 @@
       border: 1px solid #ddd;
       line-height: 1.6;
       font-size: 16px;
+      resize: none;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
     }
 
     button {
+      flex: 1;
       padding: 12px;
       border-radius: 8px;
       border: none;
-      background: #007bff;
-      color: white;
       font-weight: bold;
-      font-size: 18px;
+      font-size: 16px;
       cursor: pointer;
       transition: 0.3s;
     }
 
+    #spinBtn { background: #007bff; color: white; }
+    #spinBtn:hover:not(:disabled) { background: #0056b3; }
+    
+    #resetBtn { background: #6c757d; color: white; }
+    #resetBtn:hover { background: #5a6268; }
+
     button:disabled {
       background: #ccc;
       cursor: not-allowed;
-    }
-
-    button:hover:not(:disabled) {
-      background: #0056b3;
     }
   </style>
 </head>
@@ -115,10 +122,15 @@
     <div class="input-box">
       <label><strong>請輸入菜單（一列一個）</strong></label>
       <textarea id="foodInput" placeholder="壽司&#10;滷肉飯&#10;牛肉麵&#10;麥當勞"></textarea>
-      <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-        <input type="checkbox" id="removeAfterSpin"> 抽到後刪除此項目
+      
+      <label style="display:flex; align-items:center; gap:6px; font-size:14px; cursor:pointer;">
+        <input type="checkbox" id="removeAfterSpin"> 抽到後從清單刪除
       </label>
-      <button id="spinBtn">🔥 開始抽籤</button>
+
+      <div class="btn-group">
+        <button id="resetBtn">清空</button>
+        <button id="spinBtn">🔥 開始抽籤</button>
+      </div>
     </div>
   </div>
 
@@ -126,35 +138,35 @@
     const canvas = document.getElementById('wheel');
     const ctx = canvas.getContext('2d');
     const spinBtn = document.getElementById('spinBtn');
+    const resetBtn = document.getElementById('resetBtn');
     const foodInput = document.getElementById('foodInput');
 
     canvas.width = canvas.height = 800;
     let currentRotation = 0;
     let isSpinning = false;
 
-    // 自動讀取上次的選單
-    window.onload = () => {
-      const savedData = localStorage.getItem('myMenu');
-      if (savedData) {
-        foodInput.value = savedData;
-        drawWheel();
-      }
-    };
-
+    // 繪製轉盤邏輯
     function drawWheel() {
       const items = foodInput.value.split('\n').filter(i => i.trim() !== '');
-      if (items.length === 0) return;
-      
-      localStorage.setItem('myMenu', foodInput.value);
-
       const num = items.length;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      if (num === 0) {
+          // 若沒資料，畫一個灰色的空圓
+          ctx.beginPath();
+          ctx.arc(400, 400, 390, 0, 2 * Math.PI);
+          ctx.fillStyle = "#eee";
+          ctx.fill();
+          return;
+      }
+
       const arcSize = (2 * Math.PI) / num;
       const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#A29BFE', '#FF9F1C', '#95A5A6', '#F8A5C2'];
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(400, 400);
-      ctx.rotate(-Math.PI / 2);
+      ctx.rotate(-Math.PI / 2); // 讓第一個選項對準上方指針
       ctx.translate(-400, -400);
 
       items.forEach((text, i) => {
@@ -164,7 +176,7 @@
         ctx.moveTo(400, 400);
         ctx.arc(400, 400, 390, angle, angle + arcSize);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.strokeStyle = "rgba(255,255,255,0.4)";
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -174,13 +186,19 @@
         ctx.textAlign = 'right';
         ctx.fillStyle = (colors[i % colors.length] === '#1A535C') ? 'white' : '#333';
         ctx.font = 'bold 32px Microsoft JhengHei';
-        ctx.fillText(text, 350, 10);
+        ctx.fillText(text.substring(0, 10), 350, 12); // 限制長度避免溢出
         ctx.restore();
       });
       ctx.restore();
     }
 
     foodInput.addEventListener('input', drawWheel);
+    resetBtn.addEventListener('click', () => {
+        foodInput.value = "";
+        drawWheel();
+    });
+    
+    // 初始繪製
     drawWheel();
 
     spinBtn.addEventListener('click', () => {
@@ -188,15 +206,15 @@
 
       const items = foodInput.value.split('\n').filter(i => i.trim() !== '');
       if (items.length < 2) {
-        alert('請至少輸入兩個選項！');
+        alert('請至少輸入兩個選項才能抽籤喔！');
         return;
       }
 
       isSpinning = true;
       spinBtn.disabled = true;
 
-      const randomExtra = Math.floor(Math.random() * 360) + Math.floor(Math.random() * 720);
-      const baseSpins = Math.floor(Math.random() * 4) + 4;
+      const baseSpins = 5; // 基本轉5圈
+      const randomExtra = Math.floor(Math.random() * 360); 
       const totalRotation = currentRotation + (360 * baseSpins) + randomExtra;
 
       canvas.style.transform = `rotate(${totalRotation}deg)`;
@@ -209,25 +227,29 @@
         const actualDeg = currentRotation % 360;
         const num = items.length;
         const arcSizeDeg = 360 / num;
+
+        // 計算中獎索引
         let winningIndex = Math.floor((360 - actualDeg) % 360 / arcSizeDeg);
 
         alert(`🎉 今天就吃：${items[winningIndex]}！`);
 
-        const remove = document.getElementById('removeAfterSpin').checked;
-        if (remove) {
+        if (document.getElementById('removeAfterSpin').checked) {
           items.splice(winningIndex, 1);
-          foodInput.value = items.join('\n');
+          foodInput.value = items.join("\n");
+          
+          // 移除中獎項後，瞬間重置轉盤位置，避免下次旋轉計算錯誤
           canvas.style.transition = 'none';
           currentRotation = 0;
           canvas.style.transform = `rotate(0deg)`;
           drawWheel();
-          setTimeout(() => { canvas.style.transition = 'transform 4s cubic-bezier(0.15, 0, 0.15, 1)'; }, 50);
+          setTimeout(() => { 
+              canvas.style.transition = 'transform 4s cubic-bezier(0.15, 0, 0.15, 1)'; 
+          }, 50);
         }
       }, 4000);
     });
   </script>
 </body>
 </html>
-
-  </body>
+</body>
 </html>
